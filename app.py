@@ -22,46 +22,52 @@ for i, (code, label) in enumerate(semester_map.items()):
     if cols[i].toggle(label, key=code, value=(i < 2)):
         selected_semesters.append(code)
 
-# 과목 컬럼 정의
-columns = selected_semesters + ["반영비율 (%)"]
+columns = selected_semesters + ["이수단위", "카테고리"]
 
 fixed_subjects = ["국어", "수학", "영어", "한국사"]
 category_subjects = ["사회", "과학"]
 initial_subjects = fixed_subjects + category_subjects
 
-# 학기 변경 시 이전 데이터 저장 및 반영
+# 이모지 포함 카테고리 옵션
+category_options = {
+    "🟥 국어": "국어",
+    "🟧 수학": "수학",
+    "🟨 영어": "영어",
+    "🟩 사회": "사회",
+    "🟦 과학": "과학",
+    "🟪 한국사": "한국사",
+    "⬜ 그 외": "그 외"
+}
+
+# 데이터 초기화 또는 병합
 if "grade_data" not in st.session_state:
     df = pd.DataFrame(columns=["과목"] + columns)
     for subj in initial_subjects:
         row = {"과목": subj}
         for sem in selected_semesters:
             row[sem] = None
-        row["반영비율 (%)"] = 100
+        row["이수단위"] = 1
+        row["카테고리"] = next(k for k, v in category_options.items() if v == subj) if subj in category_options.values() else "⬜ 그 외"
         df.loc[len(df)] = row
     df = df.set_index("과목")
     st.session_state.grade_data = df
     st.session_state.prev_semesters = selected_semesters
 else:
-    if "prev_semesters" in st.session_state and st.session_state.prev_semesters != selected_semesters:
-        # 학기 토글 변경 감지 시, 현재 입력값을 저장한 뒤 병합
-        current_data = st.session_state.get("_latest_edited", st.session_state.grade_data.copy())
-        df = current_data.copy()
-
+    if st.session_state.prev_semesters != selected_semesters:
+        df = st.session_state.get("_latest_edited", st.session_state.grade_data.copy())
         for sem in selected_semesters:
             if sem not in df.columns:
                 df[sem] = None
         for sem in st.session_state.prev_semesters:
             if sem not in selected_semesters and sem in df.columns:
                 df.drop(columns=sem, inplace=True)
-
         st.session_state.grade_data = df
         st.session_state.prev_semesters = selected_semesters
 
-# 최신 데이터 기반 편집
 data = st.session_state.grade_data
 
-st.header("📊 내신 등급 및 반영비율 입력")
-st.caption("※ 하위 과목은 예: 사회 | 사회문화, 과학 | 화학1 형식으로 입력해 주세요.")
+st.header("📊 내신 등급 및 이수단위 입력")
+st.caption("※ 카테고리를 지정하세요. &nbsp;&nbsp;&nbsp;&nbsp; ※ '이수단위'=일주일 수업시수")
 
 edited_data = st.data_editor(
     data,
@@ -70,99 +76,104 @@ edited_data = st.data_editor(
     key="grade_editor",
     column_order=columns,
     column_config={
-        col: st.column_config.NumberColumn(
-            label=col,
-            min_value=1.0,
-            max_value=9.0,
-            step=0.1,
-        ) if col != "반영비율 (%)" else st.column_config.NumberColumn(
-            label="반영비율 (%)",
-            min_value=0.0,
-            max_value=100.0,
-            step=1.0,
+        **{
+            col: st.column_config.NumberColumn(
+                label=col,
+                min_value=1.0,
+                max_value=9.0,
+                step=0.1,
+            ) for col in selected_semesters
+        },
+        "이수단위": st.column_config.NumberColumn(
+            label="이수단위",
+            min_value=0.5,
+            max_value=10.0,
+            step=0.5,
+        ),
+        "카테고리": st.column_config.SelectboxColumn(
+            label="카테고리",
+            options=list(category_options.keys())
         )
-        for col in columns
     }
 )
 
-# 현재 편집값 임시 저장
 st.session_state["_latest_edited"] = edited_data
 
-fixed_subjects = ["국어", "수학", "영어", "한국사"]
-missing_required = [s for s in fixed_subjects if s not in edited_data.index]
-if missing_required:
-    st.error(f"❗ 필수 과목({', '.join(missing_required)})은 삭제할 수 없습니다. 다시 추가해주세요.")
+# 점수 변환
+grade_to_score = {1: 100, 2: 96, 3: 89, 4: 77, 5: 60, 6: 40, 7: 23, 8: 11, 9: 0}
+def interpolate_score(grade):
+    if pd.isna(grade): return None
+    if grade <= 1: return 100
+    if grade >= 9: return 0
+    lower, upper = int(grade), int(grade) + 1
+    return grade_to_score[lower] * (upper - grade) + grade_to_score[upper] * (grade - lower)
 
-# 평균 계산 함수
 def calculate_filtered_average(df, semesters, filter_option):
-    def is_selected(subject):
-        if filter_option == "국수영사":
-            return subject.startswith(("국어", "수학", "영어", "사회"))
-        elif filter_option == "국수영사한":
-            return subject.startswith(("국어", "수학", "영어", "사회", "한국사"))
-        elif filter_option == "국수영과":
-            return subject.startswith(("국어", "수학", "영어", "과학"))
-        elif filter_option == "국수영사과":
-            return subject.startswith(("국어", "수학", "영어", "사회", "과학"))
-        elif filter_option == "전체":
-            return True
-        return False
-
+    filter_map = {
+        "국수영사": ["국어", "수학", "영어", "사회"],
+        "국수영사한": ["국어", "수학", "영어", "사회", "한국사"],
+        "국수영과": ["국어", "수학", "영어", "과학"],
+        "국수영사과": ["국어", "수학", "영어", "사회", "과학"],
+        "전체": ["국어", "수학", "영어", "사회", "과학", "한국사", "그 외"]
+    }
+    df["카테고리"] = df["카테고리"].map(category_options).fillna(df["카테고리"])
     total_score = 0
     total_weight = 0
+    for _, row in df.iterrows():
+        if row["카테고리"] not in filter_map[filter_option]: continue
+        grades = [row[sem] for sem in semesters if pd.notna(row.get(sem))]
+        if not grades: continue
+        total_score += sum(grades) / len(grades)
+        total_weight += 1
+    return round(total_score / total_weight, 2) if total_weight else None
 
-    for subject, row in df.iterrows():
-        if not is_selected(subject):
-            continue
+def calculate_converted_score(df, semesters, include_etc=False):
+    df["카테고리"] = df["카테고리"].map(category_options).fillna(df["카테고리"])
+    total_weighted_score = 0
+    total_units = 0
+    for _, row in df.iterrows():
+        if row["카테고리"] == "그 외" and not include_etc: continue
         try:
-            weight = float(row["반영비율 (%)"])
-            if weight == 0:
-                continue
+            units = float(row["이수단위"])
+            if units == 0: continue
         except:
             continue
+        grades = [row[sem] for sem in semesters if pd.notna(row.get(sem))]
+        if not grades: continue
+        score = interpolate_score(sum(grades) / len(grades))
+        total_weighted_score += score * units
+        total_units += units
+    return round(total_weighted_score / total_units, 2) if total_units else None
 
-        semester_scores = [float(row[sem]) for sem in semesters if sem in row and pd.notna(row[sem])]
-        if not semester_scores:
-            continue
 
-        avg_score = sum(semester_scores) / len(semester_scores)
-        total_score += avg_score * (weight / 100)
-        total_weight += weight / 100
-
-    if total_weight == 0:
-        return None
-    return round(total_score / total_weight, 2)
-
-# 대학 라인 추천 함수
-def recommend_universities(avg):
-    if avg is None:
-        return "⚠️ 평균 등급이 계산되지 않았습니다."
-    if 1.0 <= avg < 1.2:
+def recommend_universities(score):
+    """환산 교과 점수를 기준으로 대학 라인 추천"""
+    if score is None:
+        return "⚠️ 환산 점수가 계산되지 않았습니다."
+    if score >= 99.6:
         return "🎓 의치한, 서울대 (인서울 최상위)"
-    elif 1.2 <= avg < 1.4:
+    elif score >= 98.8:
         return "🎓 고려대, 연세대 (인서울 최상위)"
-    elif 1.4 <= avg < 1.6:
+    elif score >= 98.0:
         return "🎓 서강대, 성균관대, 한양대 (인서울 상위)"
-    elif 1.6 <= avg < 1.8:
+    elif score >= 97.2:
         return "🎓 이화여대, 중앙대, 경희대, 한국외대, 시립대 (인서울 중상위)"
-    elif 1.8 <= avg < 2.0:
+    elif score >= 96.4:
         return "🎓 건국대, 동국대, 홍익대, 숙명여대 등 (인서울 중위권)"
-    elif 2.0 <= avg < 2.3:
+    elif score >= 94.6:
         return "🎓 국민대, 세종대, 숭실대, 인하대 등 (인서울 중하위권)"
-    elif 2.3 <= avg < 2.6:
+    elif score >= 92.5:
         return "🎓 서울과기대, 광운대, 명지대, 가천대 등"
-    elif 2.6 <= avg < 2.9:
+    elif score >= 90.4:
         return "🎓 명지대, 상명대, 덕성여대, 동덕여대 등"
-    elif 2.9 <= avg < 3.2:
+    elif score >= 87.8:
         return "🎓 한성대, 삼육대, 서경대 등"
-    elif 3.2 <= avg < 3.8:
+    elif score >= 80.6:
         return "🎓 수도권 대학교"
-    elif avg >= 3.8:
-        return "🎓 전문대 중심 고려, 수도권 외 일반대"
     else:
-        return "⚠️ 유효한 등급 범위가 아닙니다."
+        return "🎓 전문대 중심 고려, 수도권 외 일반대"
 
-# 평균 계산 섹션
+# 평균 계산 버튼 섹션
 st.header("📈 평균 등급 및 추천 대학 라인")
 st.write("계산할 평균 산출 방식을 선택하세요:")
 
@@ -194,19 +205,30 @@ filter_options = ["국수영사", "국수영사한", "국수영과", "국수영�
 button_cols = st.columns(len(filter_options))
 for i, label in enumerate(filter_options):
     if button_cols[i].button(label):
-        # 평균 계산 시점에만 저장
         st.session_state.grade_data = edited_data.copy()
-        average = calculate_filtered_average(st.session_state.grade_data, selected_semesters, label)
-        st.subheader("🎯 평균 등급")
-        st.success(f"평균 등급: {average}" if average is not None else "입력된 데이터가 부족합니다.")
+        include_etc = label == "전체"
+        avg = calculate_filtered_average(edited_data, selected_semesters, label)
+        conv = calculate_converted_score(edited_data, selected_semesters, include_etc)
+        st.session_state.average = avg
+        st.session_state.converted = conv
+        st.session_state.recommendation = recommend_universities(conv)
 
-        st.subheader("🎓 추천 대학 라인")
-        st.info(recommend_universities(average))
+# 출력 결과
+if "average" in st.session_state and "converted" in st.session_state:
+    st.subheader("🎯 평균 등급 및 환산 교과 점수")
+    st.success(f"평균 등급: {st.session_state.average} / 환산 교과 점수: {st.session_state.converted}점")
+
+if "recommendation" in st.session_state:
+    st.subheader("🎓 추천 대학 라인")
+    st.info(st.session_state.recommendation)
 
 
 
 
-# 과목별 시각화 코드드
+
+
+
+# 과목별 시각화 코드
 # 차트 표시 여부를 위한 세션 상태 변수
 if "show_chart" not in st.session_state:
     st.session_state.show_chart = False
