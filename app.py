@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import altair as alt
+import tempfile
+import pdfkit
 
 st.set_page_config(page_title="내신 기반 대학 추천", layout="wide")
 
@@ -146,48 +148,63 @@ def calculate_filtered_average(df, semesters, filter_option):
 
     return round(total_weighted_score / total_units, 2) if total_units else None
 
-def calculate_converted_score(df, semesters, include_etc=False):
+def calculate_converted_score(df, semesters, filter_option="전체"):
+    filter_map = {
+        "국수영사": ["국어", "수학", "영어", "사회"],
+        "국수영사한": ["국어", "수학", "영어", "사회", "한국사"],
+        "국수영과": ["국어", "수학", "영어", "과학"],
+        "국수영사과": ["국어", "수학", "영어", "사회", "과학"],
+        "전체": ["국어", "수학", "영어", "사회", "과학", "한국사", "그 외"]
+    }
+
     df["카테고리"] = df["카테고리"].map(category_options).fillna(df["카테고리"])
     total_weighted_score = 0
     total_units = 0
+
     for _, row in df.iterrows():
-        if row["카테고리"] == "그 외" and not include_etc: continue
+        if row["카테고리"] not in filter_map[filter_option]:
+            continue
+
         try:
             units = float(row["이수단위"])
             if units == 0: continue
         except:
             continue
+
         grades = [row[sem] for sem in semesters if pd.notna(row.get(sem))]
         if not grades: continue
-        score = interpolate_score(sum(grades) / len(grades))
+
+        avg_grade = sum(grades) / len(grades)
+        score = interpolate_score(avg_grade)
+
         total_weighted_score += score * units
         total_units += units
-    return round(total_weighted_score / total_units, 2) if total_units else None
 
+    return round(total_weighted_score / total_units, 2) if total_units else None
 
 def recommend_universities(score):
     """환산 교과 점수를 기준으로 대학 라인 추천"""
     if score is None:
         return "⚠️ 환산 점수가 계산되지 않았습니다."
-    if score >= 99.2:
+    if score >= 99.:
         return "🎓 의치한, 서울대 (인서울 최상위)"
-    elif score >= 98.4:
-        return "🎓 고려대, 연세대 (인서울 최상위)"
-    elif score >= 97.6:
+    elif score >= 98:
+        return "🎓 서울대, 고려대, 연세대 (인서울 최상위)"
+    elif score >= 97:
         return "🎓 서강대, 성균관대, 한양대 (인서울 상위)"
-    elif score >= 96.8:
-        return "🎓 이화여대, 중앙대, 경희대, 한국외대, 시립대 (인서울 중상위)"
     elif score >= 96:
+        return "🎓 이화여대, 중앙대, 경희대, 한국외대, 시립대 (인서울 중상위)"
+    elif score >= 95:
         return "🎓 건국대, 동국대, 홍익대, 숙명여대 등 (인서울 중위권)"
-    elif score >= 93.9:
+    elif score >= 93:
         return "🎓 국민대, 세종대, 숭실대, 인하대 등 (인서울 중하위권)"
-    elif score >= 91.8:
+    elif score >= 91:
         return "🎓 서울과기대, 광운대, 명지대, 가천대 등"
-    elif score >= 89.7:
+    elif score >= 89:
         return "🎓 명지대, 상명대, 덕성여대, 동덕여대 등"
-    elif score >= 86.6:
+    elif score >= 86:
         return "🎓 한성대, 삼육대, 서경대 등"
-    elif score >= 79.4:
+    elif score >= 79:
         return "🎓 수도권 대학교, 지방거점 국립대"
     else:
         return "🎓 전문대 중심 고려, 수도권 외 일반대"
@@ -227,7 +244,7 @@ for i, label in enumerate(filter_options):
         st.session_state.grade_data = edited_data.copy()
         include_etc = label == "전체"
         avg = calculate_filtered_average(edited_data, selected_semesters, label)
-        conv = calculate_converted_score(edited_data, selected_semesters, include_etc)
+        conv = calculate_converted_score(edited_data, selected_semesters, label)
         st.session_state.average = avg
         st.session_state.converted = conv
         st.session_state.recommendation = recommend_universities(conv)
@@ -336,3 +353,70 @@ if st.session_state.show_chart:
         st.altair_chart(chart, use_container_width=True)
     else:
         st.warning("계산할 데이터가 없습니다.")
+
+
+
+## pdf 내보내기
+if st.button("📄 PDF로 내보내기"):
+
+    df = st.session_state.grade_data.copy()
+    df_reset = df.reset_index()  # 과목이 인덱스에 있을 경우 대비
+
+    # 산출 방식이 선택되지 않았을 경우 "전체" 기준으로 계산
+    if "converted" not in st.session_state or "average" not in st.session_state:
+        avg = calculate_filtered_average(df, selected_semesters, "전체")
+        conv = calculate_converted_score(df, selected_semesters, include_etc=True)
+        reco = recommend_universities(conv)
+    else:
+        avg = st.session_state.average
+        conv = st.session_state.converted
+        reco = st.session_state.recommendation
+
+    # 과목별 평균 등급 계산
+    subject_averages = {}
+    for subject, row in df.iterrows():
+        grades = [row[sem] for sem in selected_semesters if pd.notna(row[sem])]
+        if grades:
+            subject_averages[subject] = round(sum(grades) / len(grades), 2)
+
+    subject_avg_html = ""
+    if subject_averages:
+        subject_avg_html = "<h2>📊 과목별 평균 등급</h2><table border='1'><tr><th>과목</th><th>평균 등급</th></tr>"
+        for subj, avg_score in subject_averages.items():
+            subject_avg_html += f"<tr><td>{subj}</td><td>{avg_score}</td></tr>"
+        subject_avg_html += "</table>"
+
+    # 전체 HTML 콘텐츠 동적 생성
+    table_html = df_reset.to_html(index=False, border=1)
+
+    html_content = f"""
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            body {{ font-family: "Malgun Gothic", sans-serif; }}
+            h1, h2 {{ text-align: center; }}
+            table {{ border-collapse: collapse; width: 100%; margin-bottom: 30px; }}
+            th, td {{ border: 1px solid black; padding: 8px; text-align: center; }}
+        </style>
+    </head>
+    <body>
+        <h1>내신 성적표</h1>
+        {table_html}
+
+        <h2>📈 산출 결과</h2>
+        <p><strong>평균 등급:</strong> {avg}</p>
+        <p><strong>환산 교과 점수:</strong> {conv}점</p>
+        <p><strong>추천 대학 라인:</strong> {reco}</p>
+
+        {subject_avg_html}
+    </body>
+    </html>
+    """
+
+    # PDF로 변환
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmpfile:
+        config = pdfkit.configuration(wkhtmltopdf="C:/Program Files/wkhtmltopdf/bin/wkhtmltopdf.exe")
+        pdfkit.from_string(html_content, tmpfile.name, configuration=config)
+        with open(tmpfile.name, "rb") as f:
+            st.download_button("📄 PDF 다운로드", f, file_name="내신성적표.pdf")
