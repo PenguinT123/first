@@ -4,8 +4,10 @@ import altair as alt
 
 st.set_page_config(page_title="내신 기반 대학 추천", layout="wide")
 
+st.markdown("<h1 style='text-align: center; font-size: 100px;'>🐧</h1>", unsafe_allow_html=True)
 st.title("🎓 내신 기반 대학 추천 앱")
 st.write("이 앱은 내신 등급을 입력받아 평균을 계산하고 대학 라인을 추천해줍니다.")
+
 
 # 학기 선택
 st.header("📆 입력할 학기 선택")
@@ -67,7 +69,7 @@ else:
 data = st.session_state.grade_data
 
 st.header("📊 내신 등급 및 이수단위 입력")
-st.caption("※ 카테고리를 지정하세요. &nbsp;&nbsp;&nbsp;&nbsp; ※ '이수단위'=일주일 수업시수")
+st.caption("※ 카테고리를 지정하세요. &nbsp;&nbsp;&nbsp;&nbsp; ※ '이수단위'=일주일 수업시간 &nbsp;&nbsp;&nbsp;&nbsp; ※ 과목 추가 가능")
 
 edited_data = st.data_editor(
     data,
@@ -116,16 +118,33 @@ def calculate_filtered_average(df, semesters, filter_option):
         "국수영사과": ["국어", "수학", "영어", "사회", "과학"],
         "전체": ["국어", "수학", "영어", "사회", "과학", "한국사", "그 외"]
     }
+
     df["카테고리"] = df["카테고리"].map(category_options).fillna(df["카테고리"])
-    total_score = 0
-    total_weight = 0
+
+    total_weighted_score = 0
+    total_units = 0
+
     for _, row in df.iterrows():
-        if row["카테고리"] not in filter_map[filter_option]: continue
+        category = row["카테고리"]
+        if category not in filter_map[filter_option]:
+            continue
+
+        try:
+            units = float(row["이수단위"])
+            if units == 0:
+                continue
+        except:
+            continue
+
         grades = [row[sem] for sem in semesters if pd.notna(row.get(sem))]
-        if not grades: continue
-        total_score += sum(grades) / len(grades)
-        total_weight += 1
-    return round(total_score / total_weight, 2) if total_weight else None
+        if not grades:
+            continue
+
+        avg_grade = sum(grades) / len(grades)
+        total_weighted_score += avg_grade * units
+        total_units += units
+
+    return round(total_weighted_score / total_units, 2) if total_units else None
 
 def calculate_converted_score(df, semesters, include_etc=False):
     df["카테고리"] = df["카테고리"].map(category_options).fillna(df["카테고리"])
@@ -150,26 +169,26 @@ def recommend_universities(score):
     """환산 교과 점수를 기준으로 대학 라인 추천"""
     if score is None:
         return "⚠️ 환산 점수가 계산되지 않았습니다."
-    if score >= 99.6:
+    if score >= 99.2:
         return "🎓 의치한, 서울대 (인서울 최상위)"
-    elif score >= 98.8:
+    elif score >= 98.4:
         return "🎓 고려대, 연세대 (인서울 최상위)"
-    elif score >= 98.0:
+    elif score >= 97.6:
         return "🎓 서강대, 성균관대, 한양대 (인서울 상위)"
-    elif score >= 97.2:
+    elif score >= 96.8:
         return "🎓 이화여대, 중앙대, 경희대, 한국외대, 시립대 (인서울 중상위)"
-    elif score >= 96.4:
+    elif score >= 96:
         return "🎓 건국대, 동국대, 홍익대, 숙명여대 등 (인서울 중위권)"
-    elif score >= 94.6:
+    elif score >= 93.9:
         return "🎓 국민대, 세종대, 숭실대, 인하대 등 (인서울 중하위권)"
-    elif score >= 92.5:
+    elif score >= 91.8:
         return "🎓 서울과기대, 광운대, 명지대, 가천대 등"
-    elif score >= 90.4:
+    elif score >= 89.7:
         return "🎓 명지대, 상명대, 덕성여대, 동덕여대 등"
-    elif score >= 87.8:
+    elif score >= 86.6:
         return "🎓 한성대, 삼육대, 서경대 등"
-    elif score >= 80.6:
-        return "🎓 수도권 대학교"
+    elif score >= 79.4:
+        return "🎓 수도권 대학교, 지방거점 국립대"
     else:
         return "🎓 전문대 중심 고려, 수도권 외 일반대"
 
@@ -223,6 +242,46 @@ if "recommendation" in st.session_state:
     st.info(st.session_state.recommendation)
 
 
+
+
+with st.sidebar:
+    st.markdown("## 🐧 정보 안내")
+
+    with st.expander("📐 교과 환산 점수 산출 공식"):
+        st.markdown("""
+        ### 🧮 산출 방식
+
+        각 과목의 **학기별 등급 평균**                      
+        → **환산 점수**로 변환                    
+        → **이수단위 가중평균 계산**
+
+        **🧾 공식:**
+
+        $$
+        \\text{환산 교과 점수} = 
+        \\frac{\\sum \\left( \\text{환산등급점수} \\times \\text{이수단위} \\right)}
+        {\\sum \\text{이수단위}}
+        $$
+        """)
+
+    with st.expander("📊 등급별 반영 점수표"):
+        st.markdown("""
+        ### 🎯 환산 점수 기준표
+
+        | 평균등급 | 환산 점수 |
+        |:--------:|:----------:|
+        | 1등급     | 100점      |
+        | 2등급     | 96점       |
+        | 3등급     | 89점       |
+        | 4등급     | 77점       |
+        | 5등급     | 60점       |
+        | 6등급     | 40점       |
+        | 7등급     | 23점       |
+        | 8등급     | 11점       |
+        | 9등급     | 0점        |
+
+        🐧 **Tip:** 등급이 낮을수록 환산 점수가 크게 떨어져요!
+        """)
 
 
 
