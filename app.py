@@ -415,8 +415,16 @@ if st.button("📄 PDF로 내보내기"):
     """
 
     # PDF로 변환
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmpfile:
-        config = pdfkit.configuration(wkhtmltopdf="C:/Program Files/wkhtmltopdf/bin/wkhtmltopdf.exe")
-        pdfkit.from_string(html_content, tmpfile.name, configuration=config)
-        with open(tmpfile.name, "rb") as f:
-            st.download_button("📄 PDF 다운로드", f, file_name="내신성적표.pdf")
+    if st.button("📄 HTML로 내보내기"):
+    st.download_button(
+        label="📄 HTML 다운로드",
+        data=html_content,
+        file_name="내신성적표.html",
+        mime="text/html"
+    )
+
+    #with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmpfile:
+    #    config = pdfkit.configuration(wkhtmltopdf="C:/Program Files/wkhtmltopdf/bin/wkhtmltopdf.exe")
+    #    pdfkit.from_string(html_content, tmpfile.name, configuration=config)
+    #    with open(tmpfile.name, "rb") as f:
+    #        st.download_button("📄 PDF 다운로드", f, file_name="내신성적표.pdf")
