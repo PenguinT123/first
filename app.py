@@ -413,7 +413,10 @@ if df is not None:
 
     subject_avg_html = ""
     if subject_averages:
-        subject_avg_html = "<h2>📊 과목별 평균 등급</h2><table border='1'><tr><th>과목</th><th>평균 등급</th></tr>"
+        subject_avg_html = """
+            <br>
+            <h2 class="subtitle" style="text-align: center;">📊 과목별 평균 등급</h2>
+            <table border='1'><tr><th>과목</th><th>평균 등급</th></tr>"""
         for subj, avg_score in subject_averages.items():
             subject_avg_html += f"<tr><td>{subj}</td><td>{avg_score}</td></tr>"
         subject_avg_html += "</table>"
@@ -425,23 +428,61 @@ if df is not None:
     <html>
     <head>
         <meta charset="utf-8">
-        <style>
-            body {{ font-family: "Malgun Gothic", sans-serif; }}
-            h1, h2 {{ text-align: center; }}
-            table {{ border-collapse: collapse; width: 100%; margin-bottom: 30px; }}
-            th, td {{ border: 1px solid black; padding: 8px; text-align: center; }}
-        </style>
+      <style>
+        body {{
+          font-family: "Malgun Gothic", sans-serif;
+          background-color: #fff;
+          margin: 40px;
+        }}
+        h1.title {{
+          background-color: #f1f1f1;
+          padding: 15px;
+          border-radius: 12px;
+          font-size: 32px;
+          text-align: center;
+          margin-bottom: 30px;
+        }}
+        h2.subtitle {{
+          background-color: #e0f7fa;
+          padding: 10px;
+          border-left: 8px solid #4dd0e1;
+          margin-top: 40px;
+          font-size: 24px;
+        }}
+        table {{
+          border-collapse: collapse;
+          width: 100%;
+          margin-top: 20px;
+          margin-bottom: 30px;
+        }}
+        th, td {{
+          border: 1px solid #ccc;
+          padding: 10px;
+          text-align: center;
+        }}
+        table tr:first-child th {{
+          background-color: #fbe9a9;
+          font-weight: bold;
+        }}
+        p {{
+          font-size: 18px;
+          margin-left: 15px;
+        }}
+    </style>
     </head>
     <body>
-        <h1>내신 성적표</h1>
+        <h1 class="title">🐧 내신 성적표</h1>
         {table_html}
 
-        <h2>📈 산출 결과</h2>
+        <h2 class="subtitle" style="text-align: center;">📈 산출 결과</h2>
         <p><strong>평균 등급:</strong> {avg}</p>
         <p><strong>환산 교과 점수:</strong> {conv}점</p>
         <p><strong>추천 대학 라인:</strong> {reco}</p>
-
+        
+        
+        <br>
         {subject_avg_html}
+
     </body>
     </html>
     """
