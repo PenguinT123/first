@@ -356,26 +356,58 @@ if st.session_state.show_chart:
 
 
 
-## pdf 내보내기
-if st.button("📄 PDF로 내보내기"):
+# 줄바꿈 + 가로줄로 버튼 구분
+st.markdown("<br><hr><br>", unsafe_allow_html=True)
 
-    df = st.session_state.grade_data.copy()
-    df_reset = df.reset_index()  # 과목이 인덱스에 있을 경우 대비
 
-    # 산출 방식이 선택되지 않았을 경우 "전체" 기준으로 계산
+## html 내보내기
+df = st.session_state.get("grade_data")
+if df is not None:
+    df_reset = df.reset_index()
+    selected_semesters = st.session_state.get("prev_semesters", [])
+
+    # 계산 결과가 없으면 기본적으로 계산
     if "converted" not in st.session_state or "average" not in st.session_state:
-        avg = calculate_filtered_average(df, selected_semesters, "전체")
-        conv = calculate_converted_score(df, selected_semesters, include_etc=True)
-        reco = recommend_universities(conv)
+        from math import isnan
+        def interpolate_score(g):
+            return 0 if pd.isna(g) else 100 - (g - 1) * 12  # 단순 가중치 예시
+        def calculate_filtered_average(df, semesters):
+            total_score = 0
+            total_weight = 0
+            for _, row in df.iterrows():
+                grades = [row[sem] for sem in semesters if pd.notna(row.get(sem))]
+                if not grades: continue
+                units = float(row["이수단위"])
+                avg_grade = sum(grades) / len(grades)
+                total_score += avg_grade * units
+                total_weight += units
+            return round(total_score / total_weight, 2) if total_weight else None
+
+        def calculate_converted_score(df, semesters):
+            total_score = 0
+            total_units = 0
+            for _, row in df.iterrows():
+                grades = [row[sem] for sem in semesters if pd.notna(row.get(sem))]
+                if not grades: continue
+                units = float(row["이수단위"])
+                avg = sum(grades) / len(grades)
+                score = interpolate_score(avg)
+                total_score += score * units
+                total_units += units
+            return round(total_score / total_units, 2) if total_units else None
+
+        avg = calculate_filtered_average(df_reset, selected_semesters)
+        conv = calculate_converted_score(df_reset, selected_semesters)
+        reco = "🎓 대학 추천 계산 필요"  # 추천 함수 생략 시 임시 문구
     else:
         avg = st.session_state.average
         conv = st.session_state.converted
         reco = st.session_state.recommendation
 
-    # 과목별 평균 등급 계산
+    # 과목별 평균
     subject_averages = {}
     for subject, row in df.iterrows():
-        grades = [row[sem] for sem in selected_semesters if pd.notna(row[sem])]
+        grades = [row[sem] for sem in selected_semesters if pd.notna(row.get(sem))]
         if grades:
             subject_averages[subject] = round(sum(grades) / len(grades), 2)
 
@@ -386,9 +418,9 @@ if st.button("📄 PDF로 내보내기"):
             subject_avg_html += f"<tr><td>{subj}</td><td>{avg_score}</td></tr>"
         subject_avg_html += "</table>"
 
-    # 전체 HTML 콘텐츠 동적 생성
     table_html = df_reset.to_html(index=False, border=1)
 
+    # 전체 HTML 콘텐츠
     html_content = f"""
     <html>
     <head>
@@ -413,18 +445,41 @@ if st.button("📄 PDF로 내보내기"):
     </body>
     </html>
     """
+# 버튼 스타일 동일 적용
+    st.markdown(
+        """
+        <style>
+        div.stDownloadButton > button {
+            background-color: #f8c47f;
+            color: black;
+            border-radius: 12px;
+            padding: 12px 24px;
+            font-size: 20px;
+            font-family: "Segoe UI", sans-serif;
+            font-weight: bold;
+            box-shadow: 2px 2px 5px gray;
+            transition: 0.3s;
+            border: none;
+            margin: 8px;
+        }
+        div.stDownloadButton > button:hover {
+            background-color: #f7b95d;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
-    # PDF로 변환
-    if st.button("📄 HTML로 내보내기"):
+
     st.download_button(
-        label="📄 HTML 다운로드",
+        label="📄 HTML로 내보내기",
         data=html_content,
         file_name="내신성적표.html",
         mime="text/html"
     )
+else:
+    st.warning("입력된 성적 데이터가 없습니다.")
 
-    #with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmpfile:
-    #    config = pdfkit.configuration(wkhtmltopdf="C:/Program Files/wkhtmltopdf/bin/wkhtmltopdf.exe")
-    #    pdfkit.from_string(html_content, tmpfile.name, configuration=config)
-    #    with open(tmpfile.name, "rb") as f:
-    #        st.download_button("📄 PDF 다운로드", f, file_name="내신성적표.pdf")
+
+# ✅ 안내 문구 삽입
+st.markdown("<p style='text-align: center; font-size: 16px;'>🐧 <strong>Ctrl+P</strong>를 눌러 PDF로 저장할 수 있어요!</p>", unsafe_allow_html=True)

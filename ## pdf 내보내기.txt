@@ -1,0 +1,72 @@
+## pdf 내보내기
+if st.button("📄 PDF로 내보내기"):
+
+    df = st.session_state.grade_data.copy()
+    df_reset = df.reset_index()  # 과목이 인덱스에 있을 경우 대비
+
+    # 산출 방식이 선택되지 않았을 경우 "전체" 기준으로 계산
+    if "converted" not in st.session_state or "average" not in st.session_state:
+        avg = calculate_filtered_average(df, selected_semesters, "전체")
+        conv = calculate_converted_score(df, selected_semesters, include_etc=True)
+        reco = recommend_universities(conv)
+    else:
+        avg = st.session_state.average
+        conv = st.session_state.converted
+        reco = st.session_state.recommendation
+
+    # 과목별 평균 등급 계산
+    subject_averages = {}
+    for subject, row in df.iterrows():
+        grades = [row[sem] for sem in selected_semesters if pd.notna(row[sem])]
+        if grades:
+            subject_averages[subject] = round(sum(grades) / len(grades), 2)
+
+    subject_avg_html = ""
+    if subject_averages:
+        subject_avg_html = "<h2>📊 과목별 평균 등급</h2><table border='1'><tr><th>과목</th><th>평균 등급</th></tr>"
+        for subj, avg_score in subject_averages.items():
+            subject_avg_html += f"<tr><td>{subj}</td><td>{avg_score}</td></tr>"
+        subject_avg_html += "</table>"
+
+    # 전체 HTML 콘텐츠 동적 생성
+    table_html = df_reset.to_html(index=False, border=1)
+
+    html_content = f"""
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            body {{ font-family: "Malgun Gothic", sans-serif; }}
+            h1, h2 {{ text-align: center; }}
+            table {{ border-collapse: collapse; width: 100%; margin-bottom: 30px; }}
+            th, td {{ border: 1px solid black; padding: 8px; text-align: center; }}
+        </style>
+    </head>
+    <body>
+        <h1>내신 성적표</h1>
+        {table_html}
+
+        <h2>📈 산출 결과</h2>
+        <p><strong>평균 등급:</strong> {avg}</p>
+        <p><strong>환산 교과 점수:</strong> {conv}점</p>
+        <p><strong>추천 대학 라인:</strong> {reco}</p>
+
+        {subject_avg_html}
+    </body>
+    </html>
+    """
+
+    # PDF로 변환
+    if st.button("📄 HTML로 내보내기"):
+        st.download_button(
+            label="📄 HTML 다운로드",
+            data=html_content,
+            file_name="내신성적표.html",
+            mime="text/html"
+            )
+
+    #with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmpfile:
+    #    config = pdfkit.configuration(wkhtmltopdf="C:/Program Files/wkhtmltopdf/bin/wkhtmltopdf.exe")
+    #    pdfkit.from_string(html_content, tmpfile.name, configuration=config)
+    #    with open(tmpfile.name, "rb") as f:
+    #        st.download_button("📄 PDF 다운로드", f, file_name="내신성적표.pdf")
