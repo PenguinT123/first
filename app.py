@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 import tempfile
-import pdfkit
+# import pdfkit
 
 st.set_page_config(page_title="내신 기반 대학 추천", layout="wide")
 
