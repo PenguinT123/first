@@ -35,8 +35,8 @@ button {
     }
 
     h1 {
-        'padding-top: 24px;
         font-size: 28px !important;
+        margin-top: 40px !important;
     }
 
     h2 {
