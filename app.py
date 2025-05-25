@@ -168,7 +168,7 @@ edited_data = st.data_editor(
         ),
         "카테고리": st.column_config.SelectboxColumn(
             label="카테고리",
-            options=list(category_options.keys())
+            options=list(category_options.keys()),
             required=True,
             disabled=False
         )
