@@ -4,11 +4,82 @@ import altair as alt
 import tempfile
 # import pdfkit
 
+
 st.set_page_config(page_title="내신 기반 대학 추천", layout="wide")
+
+#화면 크기 최적화
+st.markdown("""
+<style>
+/* 기본 폰트 및 레이아웃 조정 */
+body, .stApp {
+    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    padding: 1rem;
+    margin: 0;
+}
+
+/* 타이틀 폰트 반응형 */
+h1, h2, h3 {
+    word-break: keep-all;
+}
+
+/* 버튼 폰트 크기 조정 */
+button {
+    font-size: 1rem;
+}
+
+/* 📱 모바일 대응 미디어 쿼리 */
+@media (max-width: 768px) {
+    html, body, .stApp {
+        font-size: 15px;
+        padding: 8px;
+    }
+
+    h1 {
+        font-size: 28px !important;
+    }
+
+    h2 {
+        font-size: 20px !important;
+    }
+
+    button {
+        font-size: 14px !important;
+        padding: 10px 16px !important;
+    }
+
+    .block-container {
+        padding: 1rem 0.5rem !important;
+    }
+
+    .element-container:has(.stDataEditor) {
+        overflow-x: auto;  /* 데이터 에디터 넘침 방지 */
+    }
+
+    table {
+        font-size: 13px;
+    }
+}
+</style>
+""", unsafe_allow_html=True)
+
 
 st.markdown("<h1 style='text-align: center; font-size: 100px;'>🐧</h1>", unsafe_allow_html=True)
 st.title("🎓 내신 기반 대학 추천 앱")
 st.write("이 앱은 내신 등급을 입력받아 평균을 계산하고 대학 라인을 추천해줍니다.")
+
+st.markdown("""
+<div style='
+    background-color: #fce4ec;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    color: #880e4f;
+    text-align: center;
+    margin-bottom: 20px;'>
+    🐧 왼쪽 상단 &nbsp;[&nbsp; > &nbsp;]을 눌러 <strong>정보 열기</strong> / <strong>닫기</strong>를 할 수 있어요!
+</div>
+""", unsafe_allow_html=True)
 
 
 # 학기 선택
@@ -299,6 +370,7 @@ with st.sidebar:
 
         🐧 **Tip:** 등급이 낮을수록 환산 점수가 크게 떨어져요!
         """)
+
 
 
 
