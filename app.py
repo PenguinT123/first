@@ -170,6 +170,7 @@ edited_data = st.data_editor(
             label="카테고리",
             options=list(category_options.keys())
             required=True,
+            disabled=False
         )
     },
 )
