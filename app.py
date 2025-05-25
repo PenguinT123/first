@@ -170,8 +170,21 @@ edited_data = st.data_editor(
             label="카테고리",
             options=list(category_options.keys())
         )
-    }
+    },
 )
+
+st.markdown("""
+    <style>
+    /* 데이터 에디터 셀 내 드롭다운 select 요소가 모바일에서 잘리지 않도록 조정 */
+    [data-testid="stDataEditorCell"] select {
+        max-width: 100vw !important;  /* 화면 너비에 맞게 확장 */
+        z-index: 100 !important;     /* 겹침 방지 */
+    }
+    div[data-testid="stDataFrameBlock"] {
+        overflow-x: auto;  /* 전체 표 가로 스크롤 가능하게 */
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 st.session_state["_latest_edited"] = edited_data
 
@@ -375,7 +388,7 @@ with st.sidebar:
 
 
 
-
+st.markdown("<br>", unsafe_allow_html=True)
 
 # 과목별 시각화 코드
 # 차트 표시 여부를 위한 세션 상태 변수
