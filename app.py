@@ -440,6 +440,9 @@ df = st.session_state.get("grade_data")
 if df is not None:
     df_reset = df.reset_index()
     selected_semesters = st.session_state.get("prev_semesters", [])
+    ordered_cols = ["과목"] + selected_semesters + ["이수단위", "카테고리"]
+    df_reset = df_reset[[col for col in ordered_cols if col in df_reset.columns]]
+
 
     # 계산 결과가 없으면 기본적으로 계산
     if "converted" not in st.session_state or "average" not in st.session_state:
